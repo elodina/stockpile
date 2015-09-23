@@ -20,7 +20,6 @@ func InitLogging(level string) error {
 </seelog>`, level)
 
 	logger, err := log.LoggerFromConfigAsBytes([]byte(config))
-	Config.LogLevel = level
 	Logger = logger
 
 	return err
