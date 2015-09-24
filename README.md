@@ -10,9 +10,13 @@ $ godep restore
 $ go build
 ```
 
+## Prepare Cassandra
+
+Create table with schema, described in stats.cql.
+
 ## Run
 
-To run stockpile executor copy it's binary to go_kafka_client scheduler directory, add new consumer task using cli and start it.
+To run stockpile executor, copy it's binary to go_kafka_client scheduler directory, add new consumer task using cli and start it.
 
 Example:
 
