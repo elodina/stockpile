@@ -2,6 +2,7 @@ package stockpile
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gocql/gocql"
 	kafka "github.com/stealthly/go_kafka_client"
@@ -19,7 +20,8 @@ func NewCassandraProducer() *CassandraProducer {
 }
 
 func (kc *CassandraProducer) start(taskConfig kafkamesos.TaskConfig, messages <-chan *kafka.Message) error {
-	cluster := gocql.NewCluster(taskConfig["cassandra.cluster"])
+	nodes := strings.Split(taskConfig["cassandra.cluster"], ",")
+	cluster := gocql.NewCluster(nodes...)
 	cluster.Keyspace = taskConfig["cassandra.keyspace"]
 	session, err := cluster.CreateSession()
 	if err != nil {
