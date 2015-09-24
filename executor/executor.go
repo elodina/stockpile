@@ -25,13 +25,12 @@ func NewExecutor() *Executor {
 }
 
 func (e *Executor) start() {
-	messages, err := e.kafkaConsumer.start(e.config["consumer.config"])
+	messages, err := e.kafkaConsumer.start(e.config)
 	if err != nil {
 		Logger.Errorf("Failed to start kafka consumer: %s", err.Error())
-		panic(err)
 		return
 	}
-	e.cassandraProducer.start(e.config["cassandra"], messages)
+	e.cassandraProducer.start(e.config, messages)
 }
 
 func (e *Executor) stop() {
@@ -40,6 +39,7 @@ func (e *Executor) stop() {
 }
 
 func (e *Executor) parseConfig() {
+
 }
 
 func (e *Executor) Registered(driver executor.ExecutorDriver, executor *mesos.ExecutorInfo, framework *mesos.FrameworkInfo, slave *mesos.SlaveInfo) {

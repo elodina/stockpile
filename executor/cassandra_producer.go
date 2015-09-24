@@ -1,8 +1,11 @@
 package stockpile
 
 import (
+	"fmt"
+
 	"github.com/gocql/gocql"
 	kafka "github.com/stealthly/go_kafka_client"
+	kafkamesos "github.com/stealthly/go_kafka_client/mesos/framework"
 )
 
 type CassandraProducer struct {
@@ -15,27 +18,28 @@ func NewCassandraProducer() *CassandraProducer {
 	}
 }
 
-func (kc *CassandraProducer) start(cassandraConfig string, messages <-chan *kafka.Message) error {
-	cluster := gocql.NewCluster("127.0.0.1")
-	cluster.Keyspace = "test"
+func (kc *CassandraProducer) start(taskConfig kafkamesos.TaskConfig, messages <-chan *kafka.Message) error {
+	cluster := gocql.NewCluster(taskConfig["cassandra.cluster"])
+	cluster.Keyspace = taskConfig["cassandra.keyspace"]
 	session, err := cluster.CreateSession()
 	if err != nil {
 		panic(err)
 		return err
 	}
 	defer session.Close()
+	insertQuery := fmt.Sprintf("INSERT INTO %s (partition, topic, key, value, offset) VALUES (?, ?, ?, ?, ?)", taskConfig["cassandra.table"])
 	for {
 		select {
 		case message := <-messages:
-			insertValue(session, message)
+			insertValue(insertQuery, session, message)
 		case <-kc.stopChan:
 			return nil
 		}
 	}
 }
 
-func insertValue(session *gocql.Session, message *kafka.Message) {
-	err := session.Query(`INSERT INTO stats (partition, topic, key, value, offset) VALUES (?, ?, ?, ?, ?)`,
+func insertValue(query string, session *gocql.Session, message *kafka.Message) {
+	err := session.Query(query,
 		message.Partition,
 		message.Topic,
 		string(message.Key),

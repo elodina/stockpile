@@ -1,10 +1,10 @@
 package stockpile
 
 import (
-	"runtime"
-	"time"
+	"errors"
 
 	kafka "github.com/stealthly/go_kafka_client"
+	kafkamesos "github.com/stealthly/go_kafka_client/mesos/framework"
 )
 
 type KafkaConsumer struct {
@@ -18,32 +18,28 @@ func NewKafkaConsumer() *KafkaConsumer {
 	}
 }
 
-func (kc *KafkaConsumer) start(consumerConfig string) (<-chan *kafka.Message, error) {
-	Logger.Debugf("Starting KafkaConsumer with config: %s", consumerConfig)
+func (kc *KafkaConsumer) start(taskConfig kafkamesos.TaskConfig) (<-chan *kafka.Message, error) {
+	consumerConfig := taskConfig["consumer.config"]
 	config, err := kafka.ConsumerConfigFromFile(consumerConfig)
 	if err != nil {
 		return nil, err
 	}
-	Logger.Debugf("Low level client created")
 	config.Strategy = kc.messageCallback
-	config.WorkerFailureCallback = func(*kafka.WorkerManager) kafka.FailedDecision {
-		Logger.Debug("WorkerFailureCallback")
-		return kafka.CommitOffsetAndContinue
+	config.WorkerFailureCallback = failureCallback
+	config.WorkerFailedAttemptCallback = failedAttemptCallback
+	config.Coordinator, err = getZookeeper(consumerConfig)
+	if err != nil {
+		return nil, err
 	}
-	config.WorkerFailedAttemptCallback = func(*kafka.Task, kafka.WorkerResult) kafka.FailedDecision {
-		Logger.Debug("WorkerFailedAttemptCallback")
-		return kafka.CommitOffsetAndContinue
-	}
-	zkConfig := kafka.NewZookeeperConfig()
-	zkConfig.ZookeeperConnect = []string{"localhost:2181"}
-	zkConfig.MaxRequestRetries = 10
-	zkConfig.ZookeeperTimeout = 30 * time.Second
-	zkConfig.RequestBackoff = 3 * time.Second
-	config.Coordinator = kafka.NewZookeeperCoordinator(zkConfig)
 	kc.consumer = kafka.NewConsumer(config)
-	Logger.Debug("Starting consumer...")
-	go kc.consumer.StartWildcard(kafka.NewWhiteList("stats"), runtime.NumCPU())
-	Logger.Debug("Consumer started")
+	if err != nil {
+		return nil, err
+	}
+	filter, err := getFilter(taskConfig)
+	if err != nil {
+		return nil, err
+	}
+	go kc.consumer.StartWildcard(filter, config.NumConsumerFetchers)
 	return kc.messages, nil
 }
 
@@ -57,4 +53,32 @@ func (kc *KafkaConsumer) stop() {
 	Logger.Debug("Stoping consumer...")
 	kc.consumer.Close()
 	Logger.Debug("Consumer stopped")
+}
+
+func getZookeeper(consumerConfig string) (*kafka.ZookeeperCoordinator, error) {
+	zkConfig, err := kafka.ZookeeperConfigFromFile(consumerConfig)
+	if err != nil {
+		return nil, err
+	}
+	return kafka.NewZookeeperCoordinator(zkConfig), nil
+}
+
+func failureCallback(*kafka.WorkerManager) kafka.FailedDecision {
+	Logger.Debug("WorkerFailureCallback")
+	return kafka.CommitOffsetAndContinue
+}
+
+func failedAttemptCallback(*kafka.Task, kafka.WorkerResult) kafka.FailedDecision {
+	Logger.Debug("WorkerFailedAttemptCallback")
+	return kafka.CommitOffsetAndContinue
+}
+
+func getFilter(taskConfig kafkamesos.TaskConfig) (kafka.TopicFilter, error) {
+	if whitelist, ok := taskConfig["whitelist"]; ok {
+		return kafka.NewWhiteList(whitelist), nil
+	}
+	if blacklist, ok := taskConfig["blacklist"]; ok {
+		return kafka.NewBlackList(blacklist), nil
+	}
+	return nil, errors.New("Whitelist or Blacklist should be present.")
 }
