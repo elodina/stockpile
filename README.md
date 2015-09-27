@@ -1,6 +1,6 @@
 # stockpile
 
-**stockpile** is a mesos executor for go_kafka_client scheduler.
+**stockpile** is a mesos executor for go_kafka_client scheduler that mirros data from Apache Kafka to Apache Cassandra
 
 ## Build
 ```bash
