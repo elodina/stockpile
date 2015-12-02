@@ -23,7 +23,6 @@ func (kc *CassandraProducer) start(taskConfig kafkamesos.TaskConfig, messages <-
 	cluster.Keyspace = taskConfig["cassandra.keyspace"]
 	session, err := cluster.CreateSession()
 	if err != nil {
-		panic(err)
 		return err
 	}
 	defer session.Close()

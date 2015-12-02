@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	"os"
 
+	"fmt"
+	"github.com/gocql/gocql"
 	"github.com/mesos/mesos-go/executor"
 	mesos "github.com/mesos/mesos-go/mesosproto"
 	kafkamesos "github.com/stealthly/go_kafka_client/mesos/framework"
+	"strings"
+	"time"
 )
 
 type Executor struct {
@@ -25,6 +29,12 @@ func NewExecutor() *Executor {
 }
 
 func (e *Executor) start() {
+	err := e.createKeyspaceAndTable()
+	if err != nil {
+		Logger.Errorf("Failed to create keyspace or table: %s", err.Error())
+		return
+	}
+
 	messages, err := e.kafkaConsumer.start(e.config)
 	if err != nil {
 		Logger.Errorf("Failed to start kafka consumer: %s", err.Error())
@@ -36,10 +46,6 @@ func (e *Executor) start() {
 func (e *Executor) stop() {
 	e.kafkaConsumer.stop()
 	e.cassandraProducer.stop()
-}
-
-func (e *Executor) parseConfig() {
-
 }
 
 func (e *Executor) Registered(driver executor.ExecutorDriver, executor *mesos.ExecutorInfo, framework *mesos.FrameworkInfo, slave *mesos.SlaveInfo) {
@@ -108,4 +114,29 @@ func (e *Executor) Shutdown(driver executor.ExecutorDriver) {
 
 func (e *Executor) Error(driver executor.ExecutorDriver, message string) {
 	Logger.Errorf("[Error] %s", message)
+}
+
+func (e *Executor) createKeyspaceAndTable() error {
+	cluster := gocql.NewCluster(strings.Split(e.config["cassandra.cluster"], ",")...)
+	cluster.Timeout = 3 * time.Second
+	connection, err := cluster.CreateSession()
+	if err != nil {
+		return err
+	}
+
+	keyspace := e.config["cassandra.keyspace"]
+	table := e.config["cassandra.table"]
+	replicationFactor := e.config["cassandra.keyspace.replication"]
+	if replicationFactor == "" {
+		replicationFactor = "1"
+	}
+
+	query := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : %s }", keyspace, replicationFactor)
+	err = connection.Query(query).Exec()
+	if err != nil {
+		return err
+	}
+
+	query = fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (partition int, topic varchar, key varchar, value varchar, offset int, PRIMARY KEY (partition, topic, offset))", table)
+	return connection.Query(query).Exec()
 }
