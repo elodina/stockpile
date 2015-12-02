@@ -123,6 +123,7 @@ func (e *Executor) createKeyspaceAndTable() error {
 	if err != nil {
 		return err
 	}
+	defer connection.Close()
 
 	keyspace := e.config["cassandra.keyspace"]
 	table := e.config["cassandra.table"]
