@@ -43,8 +43,8 @@ func insertValue(query string, session *gocql.Session, message *kafka.Message) {
 	err := session.Query(query,
 		message.Partition,
 		message.Topic,
-		string(message.Key),
-		string(message.Value),
+		message.Key,
+		message.Value,
 		message.Offset,
 	).Exec()
 	if err != nil {

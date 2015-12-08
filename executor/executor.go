@@ -138,6 +138,6 @@ func (e *Executor) createKeyspaceAndTable() error {
 		return err
 	}
 
-	query = fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s.%s (partition int, topic varchar, key varchar, value varchar, offset int, time timestamp, PRIMARY KEY ((partition, topic, offset), time)) WITH CLUSTERING ORDER BY (time DESC)", keyspace, table)
+	query = fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s.%s (partition int, topic varchar, key blob, value blob, offset int, time timestamp, PRIMARY KEY ((partition, topic, offset), time)) WITH CLUSTERING ORDER BY (time DESC)", keyspace, table)
 	return connection.Query(query).Exec()
 }
