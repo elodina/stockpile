@@ -26,7 +26,7 @@ func (kc *CassandraProducer) start(taskConfig kafkamesos.TaskConfig, messages <-
 		return err
 	}
 	defer session.Close()
-	insertQuery := fmt.Sprintf("INSERT INTO %s (partition, topic, key, value, offset, time) VALUES (?, ?, ?, ?, ?, now())", taskConfig["cassandra.table"])
+	insertQuery := fmt.Sprintf("INSERT INTO %s (partition, topic, key, value, offset, time) VALUES (?, ?, ?, ?, ?, dateof(now()))", taskConfig["cassandra.table"])
 	for {
 		select {
 		case message := <-messages:
