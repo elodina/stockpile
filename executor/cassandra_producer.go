@@ -7,6 +7,7 @@ import (
 	"github.com/gocql/gocql"
 	kafka "github.com/stealthly/go_kafka_client"
 	kafkamesos "github.com/stealthly/go_kafka_client/mesos/framework"
+	"time"
 )
 
 type CassandraProducer struct {
@@ -28,7 +29,7 @@ func (kc *CassandraProducer) start(taskConfig kafkamesos.TaskConfig, messages <-
 		return err
 	}
 	defer session.Close()
-	insertQuery := fmt.Sprintf("INSERT INTO %s (partition, topic, key, value, offset, time) VALUES (?, ?, ?, ?, ?, dateof(now()))", taskConfig["cassandra.table"])
+	insertQuery := fmt.Sprintf("INSERT INTO %s (partition, topic, key, value, offset, timeid, hour) VALUES (?, ?, ?, ?, ?, ?, ?)", taskConfig["cassandra.table"])
 	for {
 		select {
 		case message := <-messages:
@@ -40,12 +41,15 @@ func (kc *CassandraProducer) start(taskConfig kafkamesos.TaskConfig, messages <-
 }
 
 func insertValue(query string, session *gocql.Session, message *kafka.Message) {
+	curTime := time.Now()
 	err := session.Query(query,
 		message.Partition,
 		message.Topic,
 		message.Key,
 		message.Value,
 		message.Offset,
+		gocql.UUIDFromTime(curTime),
+		curTime.Format("2006-01-02 15") + ":00:00",
 	).Exec()
 	if err != nil {
 		Logger.Errorf("Can't insert value to cassandra: %s", err.Error())
