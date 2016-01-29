@@ -8,7 +8,7 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/mesos/mesos-go/executor"
 	mesos "github.com/mesos/mesos-go/mesosproto"
-	kafkamesos "github.com/stealthly/go_kafka_client/mesos/framework"
+	kafkamesos "github.com/elodina/go-kafka-client-mesos/framework"
 	"strings"
 	"time"
 )

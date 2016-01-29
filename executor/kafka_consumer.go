@@ -3,8 +3,8 @@ package stockpile
 import (
 	"errors"
 
-	kafka "github.com/stealthly/go_kafka_client"
-	kafkamesos "github.com/stealthly/go_kafka_client/mesos/framework"
+	kafka "github.com/elodina/go_kafka_client"
+	kafkamesos "github.com/elodina/go-kafka-client-mesos/framework"
 )
 
 type KafkaConsumer struct {
