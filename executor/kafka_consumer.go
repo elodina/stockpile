@@ -24,7 +24,7 @@ func NewKafkaConsumer(brokerList []string, topics []string, partitions []int32) 
 
 func (kc *KafkaConsumer) Start() (<-chan *gonzo.MessageAndMetadata, error) {
 	config := siesta.NewConnectorConfig()
-	config.BrokerList = []string{"localhost:9092"}
+	config.BrokerList = kc.brokerList
 
 	client, err := siesta.NewDefaultConnector(config)
 	if err != nil {
