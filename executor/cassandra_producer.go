@@ -3,60 +3,79 @@ package stockpile
 import (
 	"fmt"
 	"strings"
-
-	"github.com/gocql/gocql"
-	kafka "github.com/elodina/go_kafka_client"
-	kafkamesos "github.com/elodina/go-kafka-client-mesos/framework"
 	"time"
+
+	kafkaavro "github.com/elodina/go-kafka-avro"
+	"github.com/elodina/gonzo"
+	"github.com/gocql/gocql"
+)
+
+const (
+	CassandraRetryTimeout = 2 * time.Second
 )
 
 type CassandraProducer struct {
 	stopChan chan struct{}
+	cluster  string
+	keyspace string
+	decoder  *kafkaavro.KafkaAvroDecoder
+
+	session    *gocql.Session
+	insertions map[string]func(*gonzo.MessageAndMetadata) error
 }
 
-func NewCassandraProducer() *CassandraProducer {
-	return &CassandraProducer{
+func NewCassandraProducer(cluster string, keyspace string, schema string) *CassandraProducer {
+	cp := &CassandraProducer{
 		stopChan: make(chan struct{}),
+		cluster:  cluster,
+		keyspace: keyspace,
+		decoder:  kafkaavro.NewKafkaAvroDecoder(schema),
 	}
+	cp.insertions = make(map[string]func(*gonzo.MessageAndMetadata) error)
+
+	return cp
 }
 
-func (kc *CassandraProducer) start(taskConfig kafkamesos.TaskConfig, messages <-chan *kafka.Message) error {
-	nodes := strings.Split(taskConfig["cassandra.cluster"], ",")
+func (cp *CassandraProducer) Start(messages <-chan *gonzo.MessageAndMetadata) error {
+	nodes := strings.Split(cp.cluster, ",")
 	cluster := gocql.NewCluster(nodes...)
-	cluster.Keyspace = taskConfig["cassandra.keyspace"]
+	cluster.ProtoVersion = 4
+	cluster.Keyspace = cp.keyspace
 	session, err := cluster.CreateSession()
 	if err != nil {
 		return err
 	}
-	defer session.Close()
-	insertQuery := fmt.Sprintf("INSERT INTO %s (partition, topic, key, value, offset, timeid, hour) VALUES (?, ?, ?, ?, ?, ?, ?)", taskConfig["cassandra.table"])
+	cp.session = session
+	defer cp.session.Close()
 	for {
 		select {
 		case message := <-messages:
-			insertValue(insertQuery, session, message)
-		case <-kc.stopChan:
+			err = cp.insertMessage(message)
+			if err != nil {
+				return err
+			}
+		case <-cp.stopChan:
+			Logger.Infof("Stopping Cassandra producer")
 			return nil
 		}
 	}
 }
 
-func insertValue(query string, session *gocql.Session, message *kafka.Message) {
-	curTime := time.Now()
-	err := session.Query(query,
-		message.Partition,
-		message.Topic,
-		message.Key,
-		message.Value,
-		message.Offset,
-		gocql.UUIDFromTime(curTime),
-		curTime.Format("2006-01-02 15") + ":00:00",
-	).Exec()
-	if err != nil {
-		Logger.Errorf("Can't insert value to cassandra: %s", err.Error())
-		panic(err)
+func (cp *CassandraProducer) insertMessage(message *gonzo.MessageAndMetadata) error {
+	fun, ok := cp.insertions[message.Topic]
+	if !ok {
+		return fmt.Errorf("Can't find insert function for %s", message.Topic)
+	}
+	for {
+		err := fun(message)
+		if err == nil {
+			return nil
+		}
+		Logger.Errorf("Error produce to cassandra: %s", err)
+		time.Sleep(CassandraRetryTimeout)
 	}
 }
 
-func (kc *CassandraProducer) stop() {
-	kc.stopChan <- struct{}{}
+func (cp *CassandraProducer) stop() {
+	cp.stopChan <- struct{}{}
 }
