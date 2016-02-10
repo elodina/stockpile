@@ -38,7 +38,6 @@ func (kc *KafkaConsumer) Start() (<-chan *gonzo.MessageAndMetadata, error) {
 			kc.consumer.Add(topic, partition)
 		}
 	}
-	go kc.consumer.Join()
 	return kc.messages, nil
 }
 
