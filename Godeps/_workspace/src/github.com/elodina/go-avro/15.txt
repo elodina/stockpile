@@ -1,8 +1,0 @@
-Testing positioning on 6067 sequential values
-PASS
-BenchmarkSpecificDatumReader_complex-4	  500000	      2929 ns/op	     336 B/op	      12 allocs/op
-BenchmarkSpecificDatumReader_hugeval-4	 2000000	       614 ns/op	      32 B/op	       1 allocs/op
-BenchmarkEncodeVarint32-4             	50000000	        33.6 ns/op
-BenchmarkEncodeVarint64-4             	50000000	        33.5 ns/op
-BenchmarkSpecificDatumWriter-4        	  500000	      3101 ns/op
-ok  	github.com/elodina/go-avro	8.407s
