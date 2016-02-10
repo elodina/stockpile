@@ -1,51 +1,29 @@
 package stockpile
 
 import (
-	"encoding/json"
 	"os"
 
-	"fmt"
-	"github.com/gocql/gocql"
 	"github.com/mesos/mesos-go/executor"
 	mesos "github.com/mesos/mesos-go/mesosproto"
-	kafkamesos "github.com/elodina/go-kafka-client-mesos/framework"
-	"strings"
-	"time"
 )
 
 type Executor struct {
-	config            kafkamesos.TaskConfig
-	kafkaConsumer     *KafkaConsumer
-	cassandraProducer *CassandraProducer
+	app *App
 }
 
-func NewExecutor() *Executor {
+func NewExecutor(app *App) *Executor {
 	executor := &Executor{
-		config:            make(kafkamesos.TaskConfig),
-		kafkaConsumer:     NewKafkaConsumer(),
-		cassandraProducer: NewCassandraProducer(),
+		app: app,
 	}
 	return executor
 }
 
-func (e *Executor) start() {
-	err := e.createKeyspaceAndTable()
-	if err != nil {
-		Logger.Errorf("Failed to create keyspace or table: %s", err.Error())
-		return
-	}
-
-	messages, err := e.kafkaConsumer.start(e.config)
-	if err != nil {
-		Logger.Errorf("Failed to start kafka consumer: %s", err.Error())
-		return
-	}
-	e.cassandraProducer.start(e.config, messages)
+func (e *Executor) start() error {
+	return e.app.Start()
 }
 
-func (e *Executor) stop() {
-	e.kafkaConsumer.stop()
-	e.cassandraProducer.stop()
+func (e *Executor) stop() error {
+	return e.app.Stop()
 }
 
 func (e *Executor) Registered(driver executor.ExecutorDriver, executor *mesos.ExecutorInfo, framework *mesos.FrameworkInfo, slave *mesos.SlaveInfo) {
@@ -63,14 +41,6 @@ func (e *Executor) Disconnected(executor.ExecutorDriver) {
 func (e *Executor) LaunchTask(driver executor.ExecutorDriver, task *mesos.TaskInfo) {
 	Logger.Infof("[LaunchTask] %s", task)
 
-	err := json.Unmarshal(task.GetData(), &e.config)
-	if err != nil {
-		Logger.Errorf("Could not unmarshal json data: %s", err)
-		panic(err)
-	}
-
-	Logger.Info(e.config)
-
 	runStatus := &mesos.TaskStatus{
 		TaskId: task.GetTaskId(),
 		State:  mesos.TaskState_TASK_RUNNING.Enum(),
@@ -82,7 +52,10 @@ func (e *Executor) LaunchTask(driver executor.ExecutorDriver, task *mesos.TaskIn
 	}
 
 	go func() {
-		e.start()
+		err := e.start()
+		if err != nil {
+			Logger.Errorf("Can't start executor: %s", err)
+		}
 
 		// finish task
 		Logger.Infof("Finishing task %s", task.GetName())
@@ -114,30 +87,4 @@ func (e *Executor) Shutdown(driver executor.ExecutorDriver) {
 
 func (e *Executor) Error(driver executor.ExecutorDriver, message string) {
 	Logger.Errorf("[Error] %s", message)
-}
-
-func (e *Executor) createKeyspaceAndTable() error {
-	cluster := gocql.NewCluster(strings.Split(e.config["cassandra.cluster"], ",")...)
-	cluster.Timeout = 3 * time.Second
-	connection, err := cluster.CreateSession()
-	if err != nil {
-		return err
-	}
-	defer connection.Close()
-
-	keyspace := e.config["cassandra.keyspace"]
-	table := e.config["cassandra.table"]
-	replicationFactor := e.config["cassandra.keyspace.replication"]
-	if replicationFactor == "" {
-		replicationFactor = "1"
-	}
-
-	query := fmt.Sprintf("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : %s }", keyspace, replicationFactor)
-	err = connection.Query(query).Exec()
-	if err != nil {
-		return err
-	}
-
-	query = fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s.%s (partition int, topic varchar, key blob, value blob, offset int, timeid timeuuid, hour text, PRIMARY KEY ((topic, hour), timeid)) WITH CLUSTERING ORDER BY (timeid DESC)", keyspace, table)
-	return connection.Query(query).Exec()
 }

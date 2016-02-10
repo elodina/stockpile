@@ -1,8 +1,6 @@
 package stockpile
 
 import (
-	// "errors"
-
 	"github.com/elodina/gonzo"
 	"github.com/elodina/siesta"
 )

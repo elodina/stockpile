@@ -37,6 +37,7 @@ func NewCassandraProducer(cluster string, keyspace string, schema string) *Cassa
 func (cp *CassandraProducer) Start(messages <-chan *gonzo.MessageAndMetadata) error {
 	nodes := strings.Split(cp.cluster, ",")
 	cluster := gocql.NewCluster(nodes...)
+	cluster.ProtoVersion = 4
 	cluster.Keyspace = cp.keyspace
 	session, err := cluster.CreateSession()
 	if err != nil {
