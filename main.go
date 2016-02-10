@@ -7,7 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	kafkamesos "github.com/elodina/go-kafka-client-mesos/framework"
 	stockpile "github.com/elodina/stockpile/executor"
+	"github.com/mesos/mesos-go/executor"
 )
 
 var (
@@ -23,7 +25,10 @@ var (
 	// Schema registry
 	schema = flag.String("schema", "", "Schema registry URL")
 
-	logLevel = flag.String("log-level", "debug", "Log level. trace|debug|info|warn|error|critical. Defaults to info.")
+	// Launching as a mesos executor
+	executorType = flag.String("type", "", "Executor type")
+
+	logLevel = flag.String("log.level", "debug", "Log level. trace|debug|info|warn|error|critical. Defaults to info.")
 )
 
 func main() {
@@ -54,12 +59,37 @@ func main() {
 
 	consumer := stockpile.NewKafkaConsumer(brokerList, topicList, partitionList)
 	producer := stockpile.NewCassandraProducer(*cassandra, *keyspace, *schema)
-	messages, err := consumer.Start()
-	if err != nil {
-		panic(fmt.Sprintf("Can't start consumer. Error: %s", err))
+	app := stockpile.NewApp(consumer, producer)
+
+	if *executorType == kafkamesos.TaskTypeConsumer {
+		runExecutor(app)
+	} else {
+		runService(app)
 	}
-	err = producer.Start(messages)
+}
+
+func runExecutor(app *stockpile.App) {
+	taskExecutor := stockpile.NewExecutor(app)
+	driverConfig := executor.DriverConfig{
+		Executor: taskExecutor,
+	}
+	driver, err := executor.NewMesosExecutorDriver(driverConfig)
 	if err != nil {
+		stockpile.Logger.Error(err)
 		panic(err)
+	}
+	_, err = driver.Start()
+	if err != nil {
+		stockpile.Logger.Error(err)
+		panic(err)
+	}
+	driver.Run()
+}
+
+func runService(app *stockpile.App) {
+	err := app.Start()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }
