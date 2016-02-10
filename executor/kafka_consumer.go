@@ -15,7 +15,7 @@ type KafkaConsumer struct {
 
 func NewKafkaConsumer(brokerList []string, topics []string, partitions []int32) *KafkaConsumer {
 	return &KafkaConsumer{
-		messages:   make(chan *gonzo.MessageAndMetadata, 100),
+		messages:   make(chan *gonzo.MessageAndMetadata),
 		brokerList: brokerList,
 		topics:     topics,
 		partitions: partitions,
