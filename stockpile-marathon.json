@@ -1,0 +1,10 @@
+{
+  "id": "stockpile",
+  "cpus": 0.1,
+  "mem": 128,
+  "instances": 1,
+  "cmd": "chmod +x cli && ./cli scheduler --master leader.mesos.service.server:5050 --storage zk:leader.mesos.service:2181/stockpile-mesos --api http://$HOST:$PORT0 --user root",
+  "uris": ["https://s3-us-west-2.amazonaws.com/stockpile-mesos/stockpile.tar.gz"],
+  "ports": [6666],
+  "requirePorts": true
+}
