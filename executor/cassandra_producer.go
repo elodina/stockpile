@@ -3,11 +3,16 @@ package stockpile
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	kafkaavro "github.com/elodina/go-kafka-avro"
 	"github.com/elodina/gonzo"
 	"github.com/elodina/ulysses/avro"
 	"github.com/gocql/gocql"
+)
+
+const (
+	CassandraRetryTimeout = 2 * time.Second
 )
 
 type CassandraProducer struct {
@@ -64,7 +69,14 @@ func (cp *CassandraProducer) insertMessage(message *gonzo.MessageAndMetadata) er
 	if !ok {
 		return fmt.Errorf("Can't find insert function for %s", message.Topic)
 	}
-	return fun(message)
+	for {
+		err := fun(message)
+		if err == nil {
+			return nil
+		}
+		Logger.Errorf("Error produce to cassandra: %s", err)
+		time.Sleep(CassandraRetryTimeout)
+	}
 }
 
 func (cp *CassandraProducer) insertUserFact(message *gonzo.MessageAndMetadata) error {
