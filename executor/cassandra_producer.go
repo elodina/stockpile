@@ -7,7 +7,6 @@ import (
 
 	kafkaavro "github.com/elodina/go-kafka-avro"
 	"github.com/elodina/gonzo"
-	"github.com/elodina/ulysses/avro"
 	"github.com/gocql/gocql"
 )
 
@@ -32,9 +31,7 @@ func NewCassandraProducer(cluster string, keyspace string, schema string) *Cassa
 		keyspace: keyspace,
 		decoder:  kafkaavro.NewKafkaAvroDecoder(schema),
 	}
-	cp.insertions = map[string]func(*gonzo.MessageAndMetadata) error{
-		"cassandra_transform_user_fact_store": cp.insertUserFact,
-	}
+	cp.insertions = make(map[string]func(*gonzo.MessageAndMetadata) error)
 
 	return cp
 }
@@ -77,16 +74,6 @@ func (cp *CassandraProducer) insertMessage(message *gonzo.MessageAndMetadata) er
 		Logger.Errorf("Error produce to cassandra: %s", err)
 		time.Sleep(CassandraRetryTimeout)
 	}
-}
-
-func (cp *CassandraProducer) insertUserFact(message *gonzo.MessageAndMetadata) error {
-	fact := &avro.UserFact{}
-	err := cp.decoder.DecodeSpecific(message.Value, fact)
-	if err != nil {
-		return err
-	}
-	query := "INSERT INTO user_fact_store (userid, type, factdata) VALUES (?, ?, ?)"
-	return cp.session.Query(query, fact.UserID, fact.Type, fact.Factdata).Exec()
 }
 
 func (cp *CassandraProducer) stop() {
