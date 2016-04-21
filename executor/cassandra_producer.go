@@ -8,6 +8,7 @@ import (
 	kafkaavro "github.com/elodina/go-kafka-avro"
 	"github.com/elodina/gonzo"
 	"github.com/gocql/gocql"
+	"github.com/yanzay/log"
 )
 
 const (
@@ -32,6 +33,7 @@ func NewCassandraProducer(cluster string, keyspace string, schema string) *Cassa
 		decoder:  kafkaavro.NewKafkaAvroDecoder(schema),
 	}
 	cp.insertions = make(map[string]func(*gonzo.MessageAndMetadata) error)
+	cp.insertions["syslog"] = cp.insertSyslog
 
 	return cp
 }
@@ -46,6 +48,7 @@ func (cp *CassandraProducer) Start(messages <-chan *gonzo.MessageAndMetadata) er
 		return err
 	}
 	cp.session = session
+	log.Printf("Session created: %v", cp.session)
 	defer cp.session.Close()
 	for {
 		select {
@@ -55,7 +58,7 @@ func (cp *CassandraProducer) Start(messages <-chan *gonzo.MessageAndMetadata) er
 				return err
 			}
 		case <-cp.stopChan:
-			Logger.Infof("Stopping Cassandra producer")
+			log.Infof("Stopping Cassandra producer")
 			return nil
 		}
 	}
@@ -71,11 +74,31 @@ func (cp *CassandraProducer) insertMessage(message *gonzo.MessageAndMetadata) er
 		if err == nil {
 			return nil
 		}
-		Logger.Errorf("Error produce to cassandra: %s", err)
+		log.Errorf("Error produce to cassandra: %s", err)
 		time.Sleep(CassandraRetryTimeout)
 	}
 }
 
 func (cp *CassandraProducer) stop() {
 	cp.stopChan <- struct{}{}
+}
+
+func (cp *CassandraProducer) insertSyslog(message *gonzo.MessageAndMetadata) error {
+	mes := &SyslogMessage{}
+	err := cp.decoder.DecodeSpecific(message.Value, mes)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return cp.session.Query(`INSERT INTO logs (priority, severity, facility, timestamp, hostname, tag, pid, message, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		mes.Priority,
+		mes.Severity,
+		mes.Facility,
+		mes.Timestamp,
+		mes.Hostname,
+		mes.Tag,
+		mes.Pid,
+		mes.Message,
+		mes.Tags,
+	).Exec()
 }

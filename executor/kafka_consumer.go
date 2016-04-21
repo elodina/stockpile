@@ -3,6 +3,7 @@ package stockpile
 import (
 	"github.com/elodina/gonzo"
 	"github.com/elodina/siesta"
+	"github.com/yanzay/log"
 )
 
 type KafkaConsumer struct {
@@ -43,17 +44,17 @@ func (kc *KafkaConsumer) Start() (<-chan *gonzo.MessageAndMetadata, error) {
 
 func (kc *KafkaConsumer) messageCallback(data *gonzo.FetchData, _ *gonzo.KafkaPartitionConsumer) {
 	if data.Error != nil {
-		Logger.Errorf("Fetch error: %s", data.Error)
+		log.Errorf("Fetch error: %s", data.Error)
 		return
 	}
-	Logger.Debugf("Received %d messages.", len(data.Messages))
+	log.Debugf("Received %d messages.", len(data.Messages))
 	for _, msg := range data.Messages {
 		kc.messages <- msg
 	}
 }
 
 func (kc *KafkaConsumer) stop() {
-	Logger.Debug("Stoping consumer...")
+	log.Debug("Stoping consumer...")
 	kc.consumer.Stop()
-	Logger.Debug("Consumer stopped")
+	log.Debug("Consumer stopped")
 }

@@ -7,9 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	kafkamesos "github.com/elodina/go-kafka-client-mesos/framework"
+	// kafkamesos "github.com/elodina/go-kafka-client-mesos/framework"
 	stockpile "github.com/elodina/stockpile/executor"
 	"github.com/mesos/mesos-go/executor"
+	"github.com/yanzay/log"
 )
 
 var (
@@ -33,10 +34,6 @@ var (
 
 func main() {
 	flag.Parse()
-	err := stockpile.InitLogging(*logLevel)
-	if err != nil {
-		fmt.Printf("Logging init failed: %s", err.Error())
-	}
 
 	// Validate flags
 	if *topics == "" || *partitions == "" || *keyspace == "" || *schema == "" {
@@ -61,11 +58,11 @@ func main() {
 	producer := stockpile.NewCassandraProducer(*cassandra, *keyspace, *schema)
 	app := stockpile.NewApp(consumer, producer)
 
-	if *executorType == kafkamesos.TaskTypeConsumer {
-		runExecutor(app)
-	} else {
-		runService(app)
-	}
+	// if *executorType == kafkamesos.TaskTypeConsumer {
+	// runExecutor(app)
+	// } else {
+	runService(app)
+	// }
 }
 
 func runExecutor(app *stockpile.App) {
@@ -75,12 +72,12 @@ func runExecutor(app *stockpile.App) {
 	}
 	driver, err := executor.NewMesosExecutorDriver(driverConfig)
 	if err != nil {
-		stockpile.Logger.Error(err)
+		log.Error(err)
 		panic(err)
 	}
 	_, err = driver.Start()
 	if err != nil {
-		stockpile.Logger.Error(err)
+		log.Error(err)
 		panic(err)
 	}
 	driver.Run()
