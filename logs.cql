@@ -8,5 +8,5 @@ CREATE TABLE logs (
   pid varchar,
   message varchar,
   tags map<text, text>,
-  PRIMARY KEY (hostname, timestamp),
+  PRIMARY KEY (hostname, timestamp, message),
 );
