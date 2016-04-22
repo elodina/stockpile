@@ -21,16 +21,20 @@ type CassandraProducer struct {
 	keyspace string
 	decoder  *kafkaavro.KafkaAvroDecoder
 
-	session    *gocql.Session
-	insertions map[string]func(*gonzo.MessageAndMetadata) error
+	session      *gocql.Session
+	insertions   map[string]func(*gonzo.MessageAndMetadata) error
+	cqlVersion   string
+	protoVersion int
 }
 
-func NewCassandraProducer(cluster string, keyspace string, schema string) *CassandraProducer {
+func NewCassandraProducer(cluster string, keyspace string, schema string, cqlVersion string, protoVersion int) *CassandraProducer {
 	cp := &CassandraProducer{
-		stopChan: make(chan struct{}),
-		cluster:  cluster,
-		keyspace: keyspace,
-		decoder:  kafkaavro.NewKafkaAvroDecoder(schema),
+		stopChan:     make(chan struct{}),
+		cluster:      cluster,
+		keyspace:     keyspace,
+		decoder:      kafkaavro.NewKafkaAvroDecoder(schema),
+		cqlVersion:   cqlVersion,
+		protoVersion: protoVersion,
 	}
 	cp.insertions = make(map[string]func(*gonzo.MessageAndMetadata) error)
 	cp.insertions["syslog"] = cp.insertSyslog
@@ -41,7 +45,8 @@ func NewCassandraProducer(cluster string, keyspace string, schema string) *Cassa
 func (cp *CassandraProducer) Start(messages <-chan *gonzo.MessageAndMetadata) error {
 	nodes := strings.Split(cp.cluster, ",")
 	cluster := gocql.NewCluster(nodes...)
-	cluster.ProtoVersion = 4
+	cluster.ProtoVersion = cp.protoVersion
+	cluster.CQLVersion = cp.cqlVersion
 	cluster.Keyspace = cp.keyspace
 	session, err := cluster.CreateSession()
 	if err != nil {

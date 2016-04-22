@@ -20,8 +20,10 @@ var (
 	partitions = flag.String("partitions", "", "Kafka partitions list")
 
 	// Cassandra
-	cassandra = flag.String("cassandra", "localhost:9042", "Cassandra cluster")
-	keyspace  = flag.String("keyspace", "", "Cassandra keyspace")
+	cassandra    = flag.String("cassandra", "localhost:9042", "Cassandra cluster")
+	keyspace     = flag.String("keyspace", "", "Cassandra keyspace")
+	cqlVersion   = flag.String("cql-version", "3.2.1", "Cassandra source cluster CQL version, defaults to 3.2.1")
+	protoVersion = flag.Int("proto-version", 3, "Cassandra source cluster proto version, defaults to 3")
 
 	// Schema registry
 	schema = flag.String("schema", "", "Schema registry URL")
@@ -55,7 +57,7 @@ func main() {
 	}
 
 	consumer := stockpile.NewKafkaConsumer(brokerList, topicList, partitionList)
-	producer := stockpile.NewCassandraProducer(*cassandra, *keyspace, *schema)
+	producer := stockpile.NewCassandraProducer(*cassandra, *keyspace, *schema, *cqlVersion, *protoVersion)
 	app := stockpile.NewApp(consumer, producer)
 
 	// if *executorType == kafkamesos.TaskTypeConsumer {
