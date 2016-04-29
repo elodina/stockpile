@@ -1,6 +1,6 @@
 CREATE KEYSPACE IF NOT EXISTS syslog WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1};
 
-CREATE TABLE syslog.logs (
+CREATE TABLE IF NOT EXISTS syslog.logs (
   priority int,
   severity int,
   facility int,
